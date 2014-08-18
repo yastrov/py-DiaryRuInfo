@@ -8,7 +8,7 @@ import requests
 try:
     import cookielib
 except ImportError as e:
-    import http.cookies as cookielib
+    import http.cookiejar as cookielib
 
 from DiaryRuInfo import DiaryRuInfo
 
@@ -49,7 +49,6 @@ class DiaryRuHTTPClient(object):
           'save': 'on',
           'signature': sig,
           }
-        #data = urllib.urlencode(values)
         req = self.session.post(DIARY_AUTH_URL, data=values)
         self.cookie.save(COOKIE_FILE)
 

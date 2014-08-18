@@ -12,7 +12,7 @@ except ImportError as e:
 try:
     import cookielib
 except ImportError as e:
-    import http.cookies as cookielib
+    import http.cookiejar as cookielib
 
 from DiaryRuInfo import DiaryRuInfo
 

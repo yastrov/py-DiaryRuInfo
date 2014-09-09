@@ -129,9 +129,9 @@ class TaskBarIcon(wx.TaskBarIcon):
                 self.on_authorization(None)
                 return
             if data.is_empty():
-                self.set_new_messages_icon(data.to_unicode_str())
-            else:
                 self.set_default_icon(data.to_unicode_str())
+            else:
+                self.set_new_messages_icon(data.to_unicode_str())
             if not self.favorite_url:
                 self.favorite_url = "http://%s.diary.ru/?favorite" %data.get_shortusername()
         except urllib2.URLError as e:
@@ -149,7 +149,7 @@ class TaskBarIcon(wx.TaskBarIcon):
     def on_authorization(self, event):
         self.icon_timer.Stop()
         u, p = call_auth_dialog()
-        if u is not None:
+        if u is not None and p is not None:
             try:
                 self.diary.auth(u, p)
                 self.do_diary_request()
@@ -182,7 +182,7 @@ class App(wx.PySimpleApp):
         d = DiaryRuHTTPClient()
         if (not d.is_cookie_exists()) or d.is_cookie_expired():
             u, p = call_auth_dialog()
-            if u is None:
+            if u is None or p is None:
                 app.Exit()
                 exit()
             d.auth(u, p)

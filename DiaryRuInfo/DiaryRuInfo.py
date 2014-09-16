@@ -23,6 +23,9 @@ class DiaryRuInfo(object):
         return self._jsonData["userinfo"]["shortname"]
 
     def __unicode__(self):
+        error = self._jsonData.get('error', None)
+        if not error is None:
+            return unicode(error)
         data = self._jsonData
         return u"".join((data["userinfo"]["username"], u"\n",
                 u"Comments: ", data["newcomments"]["count"], u"\n",
@@ -30,5 +33,13 @@ class DiaryRuInfo(object):
                 u"Umails: ", data["umails"]["count"],)
                 )
 
-    def to_unicode_str(self):
-        return self.__unicode__()
+    def __str__(self):
+        error = self._jsonData.get('error', None)
+        if not error is None:
+            return error
+        data = self._jsonData
+        return "".join((data["userinfo"]["username"], "\n",
+                "Comments: ", data["newcomments"]["count"], "\n",
+                "Discuss: ", data["discuss"]["count"], "\n",
+                "Umails: ", data["umails"]["count"],)
+                )

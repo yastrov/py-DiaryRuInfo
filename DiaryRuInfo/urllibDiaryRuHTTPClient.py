@@ -14,7 +14,12 @@ try:
 except ImportError as e:
     import http.cookiejar as cookielib
 
-from DiaryRuInfo import DiaryRuInfo
+try:
+    from urllib import urlencode
+except ImportError as e:
+    from urllib.parse import urlencode
+
+from DiaryRuInfo.DiaryRuInfo import DiaryRuInfo
 
 import json
 jsonLoads = json.loads
@@ -47,22 +52,26 @@ class DiaryRuHTTPClient(object):
         """
         user and passwd must be in windows-1251 encoding!
         """
+        if not isinstance(user, bytes):
+            user = user.encode('windows-1251')
+        if not isinstance(passw, bytes):
+            passw = passw.encode('windows-1251')
         #Take base cookie
         req = urllib2Request(DIARY_MAIN_URL, headers=self.headers)
         response = urllib2urlopen(req)
         the_page = response.read()
         # auth
-        m = search('(login.php.+?)"', the_page)
+        m = search('(login.php.+?)"', the_page.decode('windows-1251', 'ignore'))
         DIARY_AUTH_URL = ''.join((DIARY_MAIN_URL, m.group() ))
-        m = search('name="signature" value="(.+?)"', the_page)
+        m = search('name="signature" value="(.+?)"', the_page.decode('windows-1251', 'ignore'))
         sig = m.group(1)
         values = {'user_login' : user,
           'user_pass' : passw,
           'save': 'on',
           'signature': sig,
           }
-        data = urllib.urlencode(values)
-        req = urllib2Request(DIARY_AUTH_URL, data=data, headers=self.headers)
+        data = urlencode(values)
+        req = urllib2Request(DIARY_AUTH_URL, data=data.encode('windows-1251'), headers=self.headers)
         req.add_header('Referer', DIARY_MAIN_URL)
         response = urllib2urlopen(req)
         the_page = response.read()
@@ -72,7 +81,7 @@ class DiaryRuHTTPClient(object):
         req = urllib2Request(DIARY_REQUEST_URL, headers=self.headers)
         response = urllib2urlopen(req)
         the_page = response.read()
-        return DiaryRuInfo(jsonLoads(the_page))
+        return DiaryRuInfo(jsonLoads(the_page.decode('utf-8', 'ignore')))
 
     def close(self):
         self.cookie.save(COOKIE_FILE)

@@ -8,7 +8,11 @@ Python 2.7 и кросплатфореммного GUI wxWidgets.
 
 TIMER_INTERVAL = 5*60 # value in seconds
 
-import wx
+try:
+    import wx
+    import wx.adv
+except ImportError:
+    print("Error: Please, install wxWidgets Phoenix!")
 import os
 
 TRAY_TOOLTIP = 'DiaryRuInfo'
@@ -21,9 +25,9 @@ TRAY_ICON_NEW_MESS = pjoin(res_path, 'icon2.png')
 RequestException = Exception
 try:
     from requests.exceptions import RequestException
-    from requestsDiaryRuHTTPClient import DiaryRuHTTPClient
+    from DiaryRuInfo.requestsDiaryRuHTTPClient import DiaryRuHTTPClient
 except ImportError as e:
-    from urllibDiaryRuHTTPClient import DiaryRuHTTPClient
+    from DiaryRuInfo.urllibDiaryRuHTTPClient import DiaryRuHTTPClient
 
 wxID_OK = wx.ID_OK
 wxOK = wx.OK
@@ -37,7 +41,7 @@ def call_auth_dialog():
     Call AuthDialog and then
     return (user, password) or (None, None)
     """
-    from wxAuthDialog import AuthDialog
+    from DiaryRuInfo.wxAuthDialog import AuthDialog
     dialog = AuthDialog()
     account = None, None
     if dialog.ShowModal() == wxID_OK:
@@ -56,16 +60,16 @@ wxEVT_MENU = wx.EVT_MENU
 def create_menu_item(menu, label, func):
     item = wxMenuItem(menu, -1, label)
     menu.Bind(wxEVT_MENU, func, id=item.GetId())
-    menu.AppendItem(item)
+    menu.Append(item)
 
 
-class TaskBarIcon(wx.TaskBarIcon):
+class TaskBarIcon(wx.adv.TaskBarIcon):
     def __init__(self, diary):
         super(TaskBarIcon, self).__init__()
         self.default_icon = TaskBarIcon.load_icon(TRAY_ICON)
         self.new_mess_icon = TaskBarIcon.load_icon(TRAY_ICON_NEW_MESS)
-        self.SetIcon(self.default_icon)
-        self.Bind(wx.EVT_TASKBAR_LEFT_DOWN, self.on_left_down)
+        self.set_default_icon()
+        self.Bind(wx.adv.EVT_TASKBAR_LEFT_DOWN, self.on_left_down)
         self.diary = diary
         self.favorite_url = None
         self.menu = self.CreatePopupMenu()
@@ -86,7 +90,7 @@ class TaskBarIcon(wx.TaskBarIcon):
 
     @staticmethod
     def load_icon(path):
-        return wx.IconFromBitmap(wx.Bitmap(path))
+        return wx.Icon(wx.Bitmap(path))
 
     def set_default_icon(self, tooltip=TRAY_TOOLTIP):
         self.SetIcon(self.default_icon, tooltip)
@@ -103,7 +107,7 @@ class TaskBarIcon(wx.TaskBarIcon):
 
     def on_open_diary_favorite(self, event):
         from webbrowser import open as wopen
-        wopen(self.favorite_url or DIARY_MAIN_URL)
+        wopen(self.favorite_url or 'http://www.diary.ru/?favorite')
 
     def on_exit(self, event):
         self.icon_timer.Stop()
@@ -115,7 +119,7 @@ class TaskBarIcon(wx.TaskBarIcon):
             self.time = time * 1000 # secunds
         if self.icon_timer is None:
             self.icon_timer = wx.Timer(self, ID_ICON_TIMER)
-            wx.EVT_TIMER(self, ID_ICON_TIMER, self.timer_event_handler)
+            self.Bind(wx.EVT_TIMER, self.timer_event_handler)
         self.icon_timer.Start(self.time)
 
     def do_diary_request(self):
@@ -123,25 +127,29 @@ class TaskBarIcon(wx.TaskBarIcon):
             data = self.diary.request()
             if data.has_error():
                 self.icon_timer.Stop()
-                wx.MessageBox(u'Error: %s' %err, u'Diary', # No format here for 2.7
+                dlg = wx.MessageDialog(None, u'Error: %s' %err, u'Diary', # No format here for 2.7
                   wxOK | wx.ICON_WARNING)
-                self.set_default_icon(data.to_unicode_str())
+                dlg.ShowModal()
+                self.set_default_icon(str(data))
                 self.on_authorization(None)
                 return
             if data.is_empty():
-                self.set_default_icon(data.to_unicode_str())
+                self.set_default_icon(str(data))
             else:
-                self.set_new_messages_icon(data.to_unicode_str())
-            if not self.favorite_url:
+                self.set_new_messages_icon(str(data))
+            if self.favorite_url is None:
                 self.favorite_url = "http://%s.diary.ru/?favorite" %data.get_shortusername()
         except urllib2.URLError as e:
-            wx.MessageBox(u'URLError: no connection to diary.ru', u'Diary',
+            dlg = wx.MessageDialog(None, u'URLError: no connection to diary.ru', u'Diary',
                   wxOK | wx.ICON_WARNING)
+            dlg.ShowModal()
         except urllib2.HTTPError as e:
-            wx.MessageBox(u'HTTPError code: %s' %e.code, u'Diary',
+            dlg = wx.MessageDialog(None, u'HTTPError code: %s' %e.code, u'Diary',
                   wxOK | wx.ICON_WARNING)
+            dlg.ShowModal()
         except RequestException as e:
-            wx.MessageBox(e, u'Diary', wxOK | wx.ICON_WARNING)
+            dlg = wx.MessageDialog(None, str(e), u'Diary', wxOK | wx.ICON_WARNING)
+            dlg.ShowModal()
 
     def timer_event_handler(self, event):
         wx.CallAfter(self.do_diary_request)
@@ -155,13 +163,16 @@ class TaskBarIcon(wx.TaskBarIcon):
                 self.do_diary_request()
                 self.icon_timer.Start(self.time)
             except urllib2.URLError as e:
-                wx.MessageBox(u'URLError: no connection to diary.ru', u'Diary',
+                dlg = wx.MessageDialog(None, u'URLError: no connection to diary.ru', u'Diary',
                       wxOK | wx.ICON_WARNING)
+                dlg.ShowModal()
             except urllib2.HTTPError as e:
-                wx.MessageBox(u'HTTPError code: %s' %e.code, u'Diary',
+                dlg = wx.MessageDialog(None, u'HTTPError code: %s' %e.code, u'Diary',
                       wxOK | wx.ICON_WARNING)
+                dlg.ShowModal()
             except RequestException as e:
-                wx.MessageBox(e, u'Diary', wxOK | wx.ICON_WARNING)
+                dlg = wx.MessageDialog(None, str(e), u'Diary', wxOK | wx.ICON_WARNING)
+                dlg.ShowModal()
         else:
             self.icon_timer.Start(self.time)
 
@@ -177,8 +188,9 @@ class TaskBarIcon(wx.TaskBarIcon):
         dialog.Destroy()
 
 
-class App(wx.PySimpleApp):
+class App(wx.App):
     def OnInit(self):
+        self.locale = wx.Locale(wx.LANGUAGE_ENGLISH)
         d = DiaryRuHTTPClient()
         if (not d.is_cookie_exists()) or d.is_cookie_expired():
             u, p = call_auth_dialog()

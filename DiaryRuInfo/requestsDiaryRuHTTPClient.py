@@ -10,7 +10,7 @@ try:
 except ImportError as e:
     import http.cookiejar as cookielib
 
-from DiaryRuInfo import DiaryRuInfo
+from DiaryRuInfo.DiaryRuInfo import DiaryRuInfo
 
 from re import search
 import time
@@ -36,6 +36,10 @@ class DiaryRuHTTPClient(object):
         """
         user and passwd must be in windows-1251 encoding!
         """
+        if not isinstance(user, bytes):
+            user = user.encode('windows-1251')
+        if not isinstance(passw, bytes):
+            passw = passw.encode('windows-1251')
         #Take base cookie
         req = self.session.get(DIARY_MAIN_URL)
         the_page = req.text

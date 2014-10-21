@@ -22,19 +22,13 @@ res_path = pjoin(pdirname(pdirname(__file__)), 'images')
 TRAY_ICON = pjoin(res_path, 'icon.png')
 TRAY_ICON_NEW_MESS = pjoin(res_path, 'icon2.png')
 
-RequestException = Exception
 try:
-    from requests.exceptions import RequestException
     from DiaryRuInfo.requestsDiaryRuHTTPClient import DiaryRuHTTPClient
 except ImportError as e:
     from DiaryRuInfo.urllibDiaryRuHTTPClient import DiaryRuHTTPClient
 
 wxID_OK = wx.ID_OK
 wxOK = wx.OK
-try:
-    import urllib2
-except ImportError as e:
-    import urllib.request as urllib2
 
 def call_auth_dialog():
     """
@@ -61,6 +55,11 @@ def create_menu_item(menu, label, func):
     item = wxMenuItem(menu, -1, label)
     menu.Bind(wxEVT_MENU, func, id=item.GetId())
     menu.Append(item)
+
+def show_message_box(message, title='Diary.Ru Error'):
+    dlg = wx.MessageDialog(None, message, title,
+              wxOK | wx.ICON_WARNING)
+    dlg.ShowModal()
 
 
 class TaskBarIcon(wx.adv.TaskBarIcon):
@@ -123,33 +122,21 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
         self.icon_timer.Start(self.time)
 
     def do_diary_request(self):
-        try:
-            data = self.diary.request()
-            if data.has_error():
-                self.icon_timer.Stop()
-                dlg = wx.MessageDialog(None, u'Error: %s' %err, u'Diary', # No format here for 2.7
-                  wxOK | wx.ICON_WARNING)
-                dlg.ShowModal()
-                self.set_default_icon(str(data))
-                self.on_authorization(None)
-                return
-            if data.is_empty():
-                self.set_default_icon(str(data))
-            else:
-                self.set_new_messages_icon(str(data))
+        data = self.diary.request()
+        if data is None:
+            self.set_default_icon(str(self.diary.error))
+            show_message_box(str(self.diary.error))
+        elif data.has_error():
+            self.icon_timer.Stop()
+            show_message_box(str(data))
+            self.set_default_icon(str(data))
+            self.on_authorization(None)
+        elif data.is_empty():
+            self.set_default_icon(str(data))
+        else:
+            self.set_new_messages_icon(str(data))
             if self.favorite_url is None:
                 self.favorite_url = "http://%s.diary.ru/?favorite" %data.get_shortusername()
-        except urllib2.URLError as e:
-            dlg = wx.MessageDialog(None, u'URLError: no connection to diary.ru', u'Diary',
-                  wxOK | wx.ICON_WARNING)
-            dlg.ShowModal()
-        except urllib2.HTTPError as e:
-            dlg = wx.MessageDialog(None, u'HTTPError code: %s' %e.code, u'Diary',
-                  wxOK | wx.ICON_WARNING)
-            dlg.ShowModal()
-        except RequestException as e:
-            dlg = wx.MessageDialog(None, str(e), u'Diary', wxOK | wx.ICON_WARNING)
-            dlg.ShowModal()
 
     def timer_event_handler(self, event):
         wx.CallAfter(self.do_diary_request)
@@ -158,21 +145,11 @@ class TaskBarIcon(wx.adv.TaskBarIcon):
         self.icon_timer.Stop()
         u, p = call_auth_dialog()
         if u is not None and p is not None:
-            try:
-                self.diary.auth(u, p)
-                self.do_diary_request()
-                self.icon_timer.Start(self.time)
-            except urllib2.URLError as e:
-                dlg = wx.MessageDialog(None, u'URLError: no connection to diary.ru', u'Diary',
-                      wxOK | wx.ICON_WARNING)
-                dlg.ShowModal()
-            except urllib2.HTTPError as e:
-                dlg = wx.MessageDialog(None, u'HTTPError code: %s' %e.code, u'Diary',
-                      wxOK | wx.ICON_WARNING)
-                dlg.ShowModal()
-            except RequestException as e:
-                dlg = wx.MessageDialog(None, str(e), u'Diary', wxOK | wx.ICON_WARNING)
-                dlg.ShowModal()
+            if self.diary.auth(u, p) is not None:
+                show_message_box(self.diary.error)
+                return
+            self.do_diary_request()
+            self.icon_timer.Start(self.time)
         else:
             self.icon_timer.Start(self.time)
 
@@ -197,7 +174,8 @@ class App(wx.App):
             if u is None or p is None:
                 app.Exit()
                 exit()
-            d.auth(u, p)
+            if d.auth(u, p) is not None:
+                show_message_box(d.error)
         t = TaskBarIcon(d)
         wx.CallAfter(t.do_diary_request)
         t.set_icon_timer(TIMER_INTERVAL)

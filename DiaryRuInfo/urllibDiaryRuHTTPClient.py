@@ -102,6 +102,8 @@ class DiaryRuHTTPClient(object):
             the_page = response.read()
             return DiaryRuInfo(jsonLoads(
                     the_page.decode('utf-8', 'ignore')))
+        except ValueError:
+            self.error='Cant decode as JSON: %s' %the_page
         except URLError as e:
             self.error = e.reason
         except HTTPError as e:

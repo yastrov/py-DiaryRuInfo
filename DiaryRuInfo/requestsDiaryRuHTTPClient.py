@@ -5,8 +5,11 @@ COOKIE_FILE = os.path.join( os.path.expanduser('~'),
                             'diary_cookie.data')
 
 import requests
-from requests.exceptions import ConnectionError,\
-            ConnectTimeout, ReadTimeout, HTTPError
+from requests.exceptions import (
+            ConnectionError,
+            ConnectTimeout,
+            ReadTimeout,
+            HTTPError)
 try:
     import cookielib
 except ImportError as e:
@@ -52,6 +55,9 @@ class DiaryRuHTTPClient(object):
         self.error = None
         try:
             req = self.__get(DIARY_MAIN_URL)
+            if req.status_code != 200:
+                self.error = req.reason
+                return self.error
             the_page = req.text
         except ConnectionError:
             self.error = "DNS Exception! Can't find diary.ru domain."
@@ -73,6 +79,9 @@ class DiaryRuHTTPClient(object):
                                   'user_pass': passw,
                                   'save': 'on',
                                   'signature': m.group(1),})
+            if req.status_code != 200:
+                self.error = req.reason
+                return self.error
             self.cookie.save(COOKIE_FILE)
         except ConnectionError:
             self.error="DNS Exception! Can't find diary.ru domain."
@@ -92,6 +101,9 @@ class DiaryRuHTTPClient(object):
         self.error = None
         try:
             req = self.__get(DIARY_REQUEST_URL)
+            if req.status_code != 200:
+                self.error = req.reason
+                return None
             return DiaryRuInfo(req.json())
         except ValueError:
             self.error='Cant decode as JSON: %s' %req.text
@@ -106,6 +118,7 @@ class DiaryRuHTTPClient(object):
         return None
 
     def close(self):
+        self.session.close()
         self.cookie.save(COOKIE_FILE)
 
     def is_cookie_expired(self):

@@ -4,16 +4,9 @@ import os
 COOKIE_FILE = os.path.join( os.path.expanduser('~'),
                             'diary_cookie.data')
 
-import urllib
-try:
-    import urllib2
-except ImportError as e:
-    import urllib.request as urllib2
-try:
-    import cookielib
-except ImportError as e:
-    import http.cookiejar as cookielib
-
+from urllib import urlencode
+import urllib2
+import cookielib
 from DiaryRuInfo import DiaryRuInfo
 
 import json
@@ -24,8 +17,8 @@ import time
 DIARY_MAIN_URL = 'http://www.diary.ru/'
 DIARY_REQUEST_URL = "http://pay.diary.ru/yandex/online.php"
 
-urllib2Request = urllib2.Request
-urllib2urlopen = urllib2.urlopen
+urllib_req = urllib2.Request
+urllib_uopen = urllib2.urlopen
 
 pexists = os.path.exists
 
@@ -42,37 +35,77 @@ class DiaryRuHTTPClient(object):
                         'Accept-encoding': 'utf-8',
                         'User-agent': 'Mozilla/5.0 (Windows NT 6.1; rv:29.0) Gecko/20100101 Firefox/29.0'
                     }
+        self.error = None
 
     def auth(self, user, passw):
         """
+        Auth on service.
+        Return None or error!
         user and passwd must be in windows-1251 encoding!
         """
+        if not isinstance(user, bytes):
+            user = user.encode('windows-1251')
+        if not isinstance(passw, bytes):
+            passw = passw.encode('windows-1251')
         #Take base cookie
-        req = urllib2Request(DIARY_MAIN_URL, headers=self.headers)
-        response = urllib2urlopen(req)
-        the_page = response.read()
+        the_page = None
+        self.error = None
+        try:
+            req = urllib_req(DIARY_MAIN_URL,
+                                    headers=self.headers)
+            response = urllib_uopen(req)
+            the_page = response.read()
+        except URLError as e:
+            self.error = e.reason
+        except HTTPError as e:
+            self.error = e.reason
+        if self.error: return self.error
         # auth
-        m = search('(login.php.+?)"', the_page)
+        m = search('(login.php.+?)"',
+                    the_page.decode('windows-1251', 'ignore'))
         DIARY_AUTH_URL = ''.join((DIARY_MAIN_URL, m.group() ))
-        m = search('name="signature" value="(.+?)"', the_page)
-        sig = m.group(1)
-        values = {'user_login' : user,
-          'user_pass' : passw,
-          'save': 'on',
-          'signature': sig,
-          }
-        data = urllib.urlencode(values)
-        req = urllib2Request(DIARY_AUTH_URL, data=data, headers=self.headers)
-        req.add_header('Referer', DIARY_MAIN_URL)
-        response = urllib2urlopen(req)
-        the_page = response.read()
+        m = search('name="signature" value="(.+?)"',
+                    the_page.decode('windows-1251', 'ignore'))
+        data = urlencode({'user_login': user,
+                          'user_pass': passw,
+                          'save': 'on',
+                          'signature': m.group(1),
+                          })
+        self.error = None
+        try:
+            req = urllib_req(DIARY_AUTH_URL,
+                                data=data.encode('windows-1251'),
+                                headers=self.headers)
+            req.add_header('Referer', DIARY_MAIN_URL)
+            response = urllib_uopen(req)
+            the_page = response.read()
+        except URLError as e:
+            self.error = e.reason
+        except HTTPError as e:
+            self.error = e.reason
         self.cookie.save(COOKIE_FILE)
+        return self.error
 
     def request(self):
-        req = urllib2Request(DIARY_REQUEST_URL, headers=self.headers)
-        response = urllib2urlopen(req)
-        the_page = response.read()
-        return DiaryRuInfo(jsonLoads(the_page))
+        """
+        Request, return DiaryRuInfo or, if error: None.
+        For get message, take DiaryRuHTTPClient().error.
+        """
+        self.error = None
+        try:
+            req = urllib_req(DIARY_REQUEST_URL,
+                             headers=self.headers)
+            response = urllib_uopen(req)
+            the_page = response.read()
+            return DiaryRuInfo(jsonLoads(
+                    the_page.decode('utf-8', 'ignore')))
+        except ValueError:
+            self.error='Cant decode as JSON: %s' %the_page
+        except URLError as e:
+            self.error = e.reason
+        except HTTPError as e:
+            self.error = e.reason
+        return None
 
     def close(self):
         self.cookie.save(COOKIE_FILE)
